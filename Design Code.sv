@@ -2,8 +2,8 @@ module apb_ram #(
   parameter ADDR_WIDTH = 5,  // 2^5 = 32 locations
   parameter DATA_WIDTH = 32
 )(
-  input  logic                    presetn,
   input  logic                    pclk,
+  input  logic                    presetn,
   input  logic                    psel,
   input  logic                    penable,
   input  logic                    pwrite,
