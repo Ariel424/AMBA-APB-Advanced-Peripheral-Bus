@@ -1,4 +1,3 @@
-// Improved APB RAM Module with proper APB protocol implementation
 module apb_ram #(
   parameter ADDR_WIDTH = 5,  // 2^5 = 32 locations
   parameter DATA_WIDTH = 32
