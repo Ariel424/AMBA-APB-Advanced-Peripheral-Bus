@@ -73,7 +73,7 @@ class apb_transaction extends uvm_sequence_item;
     `uvm_field_int(pslverr, UVM_ALL_ON)
     `uvm_field_int(prdata, UVM_ALL_ON)
   `uvm_object_utils_end
-  
+  nctio
   function new(string name = "apb_transaction");
     super.new(name);
   endfunction
