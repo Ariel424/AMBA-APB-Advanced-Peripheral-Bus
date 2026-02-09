@@ -34,13 +34,10 @@ typedef enum bit [2:0] {
 
 class apb_transaction extends uvm_sequence_item;
   
-  // Randomized fields
   rand oper_mode_e      op;
   rand logic            pwrite;
   rand logic [31:0]     pwdata;
-  rand logic [4:0]      paddr;  // 5 bits for 32 locations
-  
-  // Response fields
+  rand logic [4:0]      paddr;  
   logic                 pready;
   logic                 pslverr;
   logic [31:0]          prdata;
