@@ -33,7 +33,6 @@ typedef enum bit [2:0] {
 } oper_mode_e;
 
 class apb_transaction extends uvm_sequence_item;
-  `uvm_object_utils(apb_transaction)
   
   // Randomized fields
   rand oper_mode_e      op;
