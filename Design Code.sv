@@ -49,33 +49,6 @@ module apb_ram #(
   end
   
   //===========================================
-  // Next State Logic
-  //===========================================
-  always_comb begin
-    next_state = state;
-    
-    case (state)
-      IDLE: begin
-        if (psel && !penable) begin
-          next_state = ACCESS;
-        end
-      end
-      
-      ACCESS: begin
-        if (psel && penable) begin
-          // Stay in ACCESS during transfer
-          next_state = ACCESS;
-        end else begin
-          // Transaction complete, return to IDLE
-          next_state = IDLE;
-        end
-      end
-      
-      default: next_state = IDLE;
-    endcase
-  end
-  
-  //===========================================
   // Memory Write Logic
   //===========================================
   always_ff @(posedge pclk or negedge presetn) begin
@@ -134,7 +107,33 @@ module apb_ram #(
 
 endmodule
 
-
+ //===========================================
+  // Next State Logic
+  //===========================================
+  always_comb begin
+    next_state = state;
+    
+    case (state)
+      IDLE: begin
+        if (psel && !penable) begin
+          next_state = ACCESS;
+        end
+      end
+      
+      ACCESS: begin
+        if (psel && penable) begin
+          // Stay in ACCESS during transfer
+          next_state = ACCESS;
+        end else begin
+          // Transaction complete, return to IDLE
+          next_state = IDLE;
+        end
+      end
+      
+      default: next_state = IDLE;
+    endcase
+  end
+  
 //===========================================
 // APB Interface Definition
 //===========================================
