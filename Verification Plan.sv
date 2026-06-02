@@ -541,7 +541,7 @@ class apb_coverage extends uvm_subscriber#(apb_transaction);
 endclass
 
 //===========================================
-// Scoreboard Class
+// Checker Class
 //===========================================
 class apb_scoreboard extends uvm_scoreboard;
   `uvm_component_utils(apb_scoreboard)
