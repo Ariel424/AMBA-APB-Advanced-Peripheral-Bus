@@ -41,8 +41,13 @@ class apb_transaction extends uvm_sequence_item;
   logic                 pready;
   logic                 pslverr;
   logic [31:0]          prdata;
+  rand int unsigned slave_wait_cycles;
   
   // Constraints
+
+  constraint c_wait_cycles 
+  { slave_wait_cycles dist {0 := 70, [1:3] := 20, [4:10] := 10}; }
+  
   constraint valid_addr_c {
     (op == WRITE || op == READ) -> paddr < 32;
   }
@@ -279,6 +284,36 @@ class random_seq extends apb_base_sequence;
 endclass
 
 //===========================================
+// Qualcomm Specific: APB Back-to-Back Stall Sequence
+//===========================================
+class apb_back_to_back_stall_seq extends apb_base_sequence;
+  `uvm_object_utils(apb_back_to_back_stall_seq)
+  
+  function new(string name = "apb_back_to_back_stall_seq");
+    super.new(name);
+  endfunction
+  
+  virtual task body();
+    apb_transaction tr;
+    `uvm_info("SEQ_STRESS", "Starting APB Back-to-Back / Slave Stall Stress Sequence", UVM_LOW)
+    
+    repeat(40) begin
+      tr = apb_transaction::type_id::create("tr");
+      start_item(tr);
+      
+\      if (!tr.randomize() with {
+        slave_wait_cycles inside {[5:12]}; 
+        op inside {WRITE, READ};
+      }) begin
+        `uvm_fatal("SEQ", "Randomization failed!")
+      end
+      
+      finish_item(tr);
+    end
+  endtask
+endclass
+
+//===========================================
 // Driver Class
 //===========================================
 class apb_driver extends uvm_driver#(apb_transaction);
@@ -308,7 +343,7 @@ class apb_driver extends uvm_driver#(apb_transaction);
     `uvm_info("DRV", "Reset Complete", UVM_MEDIUM);
   endtask
   
-  task drive_transaction(apb_transaction tr);
+  virtual task drive_transaction(apb_transaction tr);
     case(tr.op)
       RESET: begin
         vif.presetn <= 1'b0;
@@ -319,60 +354,40 @@ class apb_driver extends uvm_driver#(apb_transaction);
         `uvm_info("DRV", "RESET operation", UVM_MEDIUM);
       end
       
-      WRITE, WRITE_ERR: begin
+      WRITE, WRITE_ERR, READ, READ_ERR: begin
         // Setup phase
         @(posedge vif.pclk);
         vif.psel    <= 1'b1;
         vif.penable <= 1'b0;
-        vif.pwrite  <= 1'b1;
+        vif.pwrite  <= (tr.op == WRITE || tr.op == WRITE_ERR) ? 1'b1 : 1'b0;
         vif.paddr   <= tr.paddr;
-        vif.pwdata  <= tr.pwdata;
+        if (vif.pwrite) vif.pwdata <= tr.pwdata;
         
         // Access phase
         @(posedge vif.pclk);
         vif.penable <= 1'b1;
         
-        // Wait for pready
-        wait(vif.pready == 1'b1);
+        // מנגנון Qualcomm Watchdog להגנה מפני קריסת PREADY
+        fork
+          begin: wait_pready
+            wait(vif.pready == 1'b1);
+          end
+          begin: timeout_watchdog
+            repeat(50) @(posedge vif.pclk);
+            `uvm_error("DRV_APB_TIMEOUT", $sformatf("APB Slave hung! PREADY failed to assert at addr=0x%0h", tr.paddr))
+          end
+        join_any
+        disable fork;
+        
         @(posedge vif.pclk);
         
-        // Capture response
+        // דגימת תגובה
+        if (!vif.pwrite) tr.prdata = vif.prdata;
         tr.pslverr = vif.pslverr;
         
-        // Return to idle
+        // חזרה ל-Idle (Back-to-Back תלוי בטרנזקציה הבאה)
         vif.psel    <= 1'b0;
         vif.penable <= 1'b0;
-        
-        `uvm_info("DRV", $sformatf("WRITE: addr=0x%0h, data=0x%0h, err=%0b", 
-                  tr.paddr, tr.pwdata, tr.pslverr), UVM_HIGH);
-      end
-      
-      READ, READ_ERR: begin
-        // Setup phase
-        @(posedge vif.pclk);
-        vif.psel    <= 1'b1;
-        vif.penable <= 1'b0;
-        vif.pwrite  <= 1'b0;
-        vif.paddr   <= tr.paddr;
-        
-        // Access phase
-        @(posedge vif.pclk);
-        vif.penable <= 1'b1;
-        
-        // Wait for pready
-        wait(vif.pready == 1'b1);
-        @(posedge vif.pclk);
-        
-        // Capture response
-        tr.prdata  = vif.prdata;
-        tr.pslverr = vif.pslverr;
-        
-        // Return to idle
-        vif.psel    <= 1'b0;
-        vif.penable <= 1'b0;
-        
-        `uvm_info("DRV", $sformatf("READ: addr=0x%0h, data=0x%0h, err=%0b", 
-                  tr.paddr, tr.prdata, tr.pslverr), UVM_HIGH);
       end
     endcase
   endtask
@@ -824,10 +839,50 @@ class error_test extends apb_base_test;
   
 endclass
 
-// Random Test
+//===========================================
+// 8. המתוקן Random Test השלמת ה-
+//===========================================
 class random_test extends apb_base_test;
   `uvm_component_utils(random_test)
   
   random_seq seq;
   
-  function new(string name = "random_test", uvm_component parent
+  function new(string name = "random_test", uvm_component parent = null);
+    super.new(name, parent);
+  endfunction
+  
+  virtual task run_phase(uvm_phase phase);
+    seq = random_seq::type_id::create("seq");
+    phase.raise_objection(this);
+    seq.start(env.agt.seqr);
+    #100;
+    phase.drop_objection(this);
+  endtask
+endclass
+
+//===========================================
+// Qualcomm Advanced Stress Test
+//===========================================
+class apb_qualcomm_stress_test extends apb_base_test;
+  `uvm_component_utils(apb_qualcomm_stress_test)
+  
+  apb_back_to_back_stall_seq stress_seq;
+  
+  function new(string name = "apb_qualcomm_stress_test", uvm_component parent = null);
+    super.new(name, parent);
+  endfunction
+  
+  virtual function void build_phase(uvm_phase phase);
+    // החלפת סקוונס הבסיס בסקוונס הסטרס הארכיטקטוני שלנו
+    set_type_override_by_type(apb_base_sequence::get_type(), apb_back_to_back_stall_seq::get_type());
+    super.build_phase(phase);
+  endfunction
+  
+  virtual task run_phase(uvm_phase phase);
+    stress_seq = apb_back_to_back_stall_seq::type_id::create("stress_seq");
+    phase.raise_objection(this);
+    stress_seq.start(env.agt.seqr);
+    #200;
+    phase.drop_objection(this);
+  endtask
+endclass
