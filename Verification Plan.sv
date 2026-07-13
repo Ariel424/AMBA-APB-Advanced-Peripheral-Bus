@@ -149,8 +149,10 @@ class apb_driver extends uvm_driver#(apb_transaction);
   
   virtual function void build_phase(uvm_phase phase);
     super.build_phase(phase);
-    if(!uvm_config_db#(virtual apb_if.MP_DRIVER)::get(this, "", "vif", vif))
-      `uvm_fatal("DRV", "Unable to access Interface Modport (MP_DRIVER)");
+    drv_ap = uvm_analysis_port#(my_transaction)::type_id::create("drv_ap", this);
+    if(!uvm_config_db#(virtual apb_if.MP_MONITOR)::get(this, "", "vif", vif)) begin
+      `uvm_fatal("MON", "Unable to access Interface Modport (MP_MONITOR)")
+    end
   endfunction
   
   task reset_signals();
@@ -233,9 +235,10 @@ class apb_monitor extends uvm_monitor;
   
   virtual function void build_phase(uvm_phase phase);
     super.build_phase(phase);
-    mon_ap = new("mon_ap", this);
-    if(!uvm_config_db#(virtual apb_if.MP_MONITOR)::get(this, "", "vif", vif))
-      `uvm_fatal("MON", "Unable to access Interface Modport (MP_MONITOR)");
+    mon_ap = uvm_analysis_port#(my_transaction)::type_id::create("drv_ap", this);
+    if(!uvm_config_db#(virtual apb_if.MP_MONITOR)::get(this, "", "vif", vif)) begin
+      `uvm_fatal("MON", "Unable to access Interface Modport (MP_MONITOR)")
+    end
   endfunction
   
   virtual task run_phase(uvm_phase phase);
