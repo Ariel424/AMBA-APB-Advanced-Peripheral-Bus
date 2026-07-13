@@ -225,7 +225,6 @@ endclass
 class apb_monitor extends uvm_monitor;
   `uvm_component_utils(apb_monitor)
   
-  // שימוש ב-Modport החדש MP_MONITOR
   virtual apb_if.MP_MONITOR vif;
   uvm_analysis_port#(apb_transaction) mon_ap;
   
@@ -252,6 +251,7 @@ class apb_monitor extends uvm_monitor;
         tr.op = RESET;
         mon_ap.write(tr);
       end
+      
       else if(vif.mon_cb.psel && vif.mon_cb.penable && vif.mon_cb.pready) begin
         tr = apb_transaction::type_id::create("tr");
         tr.paddr   = vif.mon_cb.paddr;
