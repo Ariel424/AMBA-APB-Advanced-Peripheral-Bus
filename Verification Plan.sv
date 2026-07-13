@@ -3,42 +3,8 @@
 `include "uvm_macros.svh"
 import uvm_pkg::*;
 
-//=================================================
-// 1. APB Interface with Clocking Blocks & Modports
-//=================================================
-interface apb_if (input logic pclk, input logic presetn);
-  
-  logic [31:0] paddr;
-  logic        psel;
-  logic        penable;
-  logic        pwrite;
-  logic [31:0] pwdata;
-  logic [31:0] prdata;
-  logic        pready;
-  logic        pslverr;
-
-  // Clocking Block לדרייבר - מאפשר כתיבה וקריאה מסונכרנת
-  clocking drv_cb @(posedge pclk);
-    default input #1ns output #1ns;
-    output paddr, psel, penable, pwrite, pwdata;
-    input  pready, pslverr, prdata;
-  endclocking
-
-  // Clocking Block למוניטור - דגימה בלבד (input)
-  clocking mon_cb @(posedge pclk);
-    default input #1ns;
-    input paddr, psel, penable, pwrite, pwdata, prdata, pready, pslverr;
-  endclocking
-
-  // הגדרת תפקידים (Modports) מעודכנים לסביבה
-  modport MP_DRIVER  (clocking drv_cb, input presetn);
-  modport MP_MONITOR (clocking mon_cb, input presetn);
-
-endinterface: apb_if
-
-
 //===========================================
-// 2. APB Configuration Class
+// APB Configuration Class
 //===========================================
 class apb_config extends uvm_object;
   `uvm_object_utils(apb_config)
@@ -54,7 +20,7 @@ class apb_config extends uvm_object;
 endclass
 
 //===========================================
-// 3. Transaction Class
+// Transaction Class
 //===========================================
 typedef enum bit [2:0] {
   WRITE     = 3'b000,
@@ -120,7 +86,7 @@ class apb_transaction extends uvm_sequence_item;
 endclass
 
 //===========================================
-// 4. Sequence Library
+// Sequence Library
 //===========================================
 class apb_base_sequence extends uvm_sequence#(apb_transaction);
   `uvm_object_utils(apb_base_sequence)
