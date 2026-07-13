@@ -136,12 +136,11 @@ class apb_back_to_back_stall_seq extends apb_base_sequence;
 endclass
 
 //===========================================
-// 5. Driver Class - Adapted for MP_DRIVER
+// Driver Class - Adapted for MP_DRIVER
 //===========================================
 class apb_driver extends uvm_driver#(apb_transaction);
   `uvm_component_utils(apb_driver)
   
-  // שימוש ב-Modport החדש MP_DRIVER
   virtual apb_if.MP_DRIVER vif;
   
   function new(string name = "apb_driver", uvm_component parent = null);
@@ -196,7 +195,6 @@ class apb_driver extends uvm_driver#(apb_transaction);
         join_any
         disable fork;
         
-        // דגימת נתונים חוזרים
         if (!tr.pwrite) tr.prdata = vif.drv_cb.prdata;
         tr.pslverr = vif.drv_cb.pslverr;
         
@@ -220,7 +218,7 @@ class apb_driver extends uvm_driver#(apb_transaction);
 endclass
 
 //===========================================
-// 6. Monitor Class - Adapted for MP_MONITOR
+// Monitor Class - Adapted for MP_MONITOR
 //===========================================
 class apb_monitor extends uvm_monitor;
   `uvm_component_utils(apb_monitor)
@@ -273,7 +271,7 @@ class apb_monitor extends uvm_monitor;
 endclass
 
 //===========================================
-// 7. Scoreboard & Env
+// Scoreboard & Env
 //===========================================
 class apb_scoreboard extends uvm_scoreboard;
   `uvm_component_utils(apb_scoreboard)
@@ -338,7 +336,7 @@ class apb_env extends uvm_env;
 endclass
 
 //===========================================
-// 8. Base Test - Config Link with New Modports
+// Base Test - Config Link with New Modports
 //===========================================
 class apb_base_test extends uvm_test;
   `uvm_component_utils(apb_base_test)
@@ -375,7 +373,7 @@ class write_read_test extends apb_base_test;
 endclass
 
 //=================================================
-// 9. Top Module
+// Top Module
 //=================================================
 module tb_top;
   logic pclk;
