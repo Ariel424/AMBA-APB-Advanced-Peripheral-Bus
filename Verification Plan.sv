@@ -9,7 +9,6 @@ import uvm_pkg::*;
 class apb_config extends uvm_object;
   `uvm_object_utils(apb_config)
   
-  // Configurable parameters
   uvm_active_passive_enum is_active = UVM_ACTIVE;
   bit has_coverage = 1;
   bit has_scoreboard = 1;
@@ -18,7 +17,6 @@ class apb_config extends uvm_object;
   function new(string name = "apb_config");
     super.new(name);
   endfunction
-  
 endclass
 
 //===========================================
@@ -37,16 +35,16 @@ class apb_transaction extends uvm_sequence_item;
   rand oper_mode_e      op;
   rand logic            pwrite;
   rand logic [31:0]     pwdata;
-  rand logic [4:0]      paddr;  
+  rand logic [31:0]     paddr; // תוקן מ- [4:0] ל- [31:0] כדי למנוע התנגשות אילוצים בכתובות שגיאה
   logic                 pready;
   logic                 pslverr;
   logic [31:0]          prdata;
-  rand int unsigned slave_wait_cycles;
+  rand int unsigned     slave_wait_cycles;
   
   // Constraints
-
-  constraint c_wait_cycles 
-  { slave_wait_cycles dist {0 := 70, [1:3] := 20, [4:10] := 10}; }
+  constraint c_wait_cycles { 
+    slave_wait_cycles dist {0 := 70, [1:3] := 20, [4:10] := 10}; 
+  }
   
   constraint valid_addr_c {
     (op == WRITE || op == READ) -> paddr < 32;
@@ -79,7 +77,6 @@ class apb_transaction extends uvm_sequence_item;
     super.new(name);
   endfunction
   
-  // Helper function to convert operation to pwrite
   function void post_randomize();
     case(op)
       WRITE, WRITE_ERR: pwrite = 1'b1;
@@ -87,27 +84,21 @@ class apb_transaction extends uvm_sequence_item;
       default:          pwrite = 1'b0;
     endcase
   endfunction
-  
 endclass
 
 //===========================================
 // Sequence Library
 //===========================================
 
-// Base Sequence
 class apb_base_sequence extends uvm_sequence#(apb_transaction);
   `uvm_object_utils(apb_base_sequence)
-  
   function new(string name = "apb_base_sequence");
     super.new(name);
   endfunction
-  
 endclass
 
-// Write Only Sequence
 class write_seq extends apb_base_sequence;
   `uvm_object_utils(write_seq)
-  
   function new(string name = "write_seq");
     super.new(name);
   endfunction
@@ -117,17 +108,14 @@ class write_seq extends apb_base_sequence;
     repeat(15) begin
       tr = apb_transaction::type_id::create("tr");
       start_item(tr);
-      assert(tr.randomize() with {op == WRITE;});
+      if(!tr.randomize() with {op == WRITE;}) `uvm_fatal("SEQ", "Randomization failed")
       finish_item(tr);
     end
   endtask
-  
 endclass
 
-// Read Only Sequence
 class read_seq extends apb_base_sequence;
   `uvm_object_utils(read_seq)
-  
   function new(string name = "read_seq");
     super.new(name);
   endfunction
@@ -137,17 +125,14 @@ class read_seq extends apb_base_sequence;
     repeat(15) begin
       tr = apb_transaction::type_id::create("tr");
       start_item(tr);
-      assert(tr.randomize() with {op == READ;});
+      if(!tr.randomize() with {op == READ;}) `uvm_fatal("SEQ", "Randomization failed")
       finish_item(tr);
     end
   endtask
-  
 endclass
 
-// Write-Read Sequence (Address Locked)
 class write_read_seq extends apb_base_sequence;
   `uvm_object_utils(write_read_seq)
-  
   function new(string name = "write_read_seq");
     super.new(name);
   endfunction
@@ -155,59 +140,44 @@ class write_read_seq extends apb_base_sequence;
   virtual task body();
     apb_transaction wr_tr, rd_tr;
     repeat(15) begin
-      // Write transaction
       wr_tr = apb_transaction::type_id::create("wr_tr");
       start_item(wr_tr);
-      assert(wr_tr.randomize() with {op == WRITE;});
+      if(!wr_tr.randomize() with {op == WRITE;}) `uvm_fatal("SEQ", "Randomization failed")
       finish_item(wr_tr);
       
-      // Read from same address
       rd_tr = apb_transaction::type_id::create("rd_tr");
       start_item(rd_tr);
-      assert(rd_tr.randomize() with {
-        op == READ;
-        paddr == wr_tr.paddr;
-      });
+      if(!rd_tr.randomize() with { op == READ; paddr == wr_tr.paddr; }) `uvm_fatal("SEQ", "Randomization failed")
       finish_item(rd_tr);
     end
   endtask
-  
 endclass
 
-// Bulk Write then Bulk Read Sequence
 class bulk_write_read_seq extends apb_base_sequence;
   `uvm_object_utils(bulk_write_read_seq)
-  
   function new(string name = "bulk_write_read_seq");
     super.new(name);
   endfunction
   
   virtual task body();
     apb_transaction tr;
-    
-    // Write phase
     repeat(20) begin
       tr = apb_transaction::type_id::create("tr");
       start_item(tr);
-      assert(tr.randomize() with {op == WRITE;});
+      if(!tr.randomize() with {op == WRITE;}) `uvm_fatal("SEQ", "Randomization failed")
       finish_item(tr);
     end
-    
-    // Read phase
     repeat(20) begin
       tr = apb_transaction::type_id::create("tr");
       start_item(tr);
-      assert(tr.randomize() with {op == READ;});
+      if(!tr.randomize() with {op == READ;}) `uvm_fatal("SEQ", "Randomization failed")
       finish_item(tr);
     end
   endtask
-  
 endclass
 
-// Error Testing Sequences
 class write_error_seq extends apb_base_sequence;
   `uvm_object_utils(write_error_seq)
-  
   function new(string name = "write_error_seq");
     super.new(name);
   endfunction
@@ -217,16 +187,14 @@ class write_error_seq extends apb_base_sequence;
     repeat(10) begin
       tr = apb_transaction::type_id::create("tr");
       start_item(tr);
-      assert(tr.randomize() with {op == WRITE_ERR;});
+      if(!tr.randomize() with {op == WRITE_ERR;}) `uvm_fatal("SEQ", "Randomization failed")
       finish_item(tr);
     end
   endtask
-  
 endclass
 
 class read_error_seq extends apb_base_sequence;
   `uvm_object_utils(read_error_seq)
-  
   function new(string name = "read_error_seq");
     super.new(name);
   endfunction
@@ -236,17 +204,14 @@ class read_error_seq extends apb_base_sequence;
     repeat(10) begin
       tr = apb_transaction::type_id::create("tr");
       start_item(tr);
-      assert(tr.randomize() with {op == READ_ERR;});
+      if(!tr.randomize() with {op == READ_ERR;}) `uvm_fatal("SEQ", "Randomization failed")
       finish_item(tr);
     end
   endtask
-  
 endclass
 
-// Reset Sequence
 class reset_seq extends apb_base_sequence;
   `uvm_object_utils(reset_seq)
-  
   function new(string name = "reset_seq");
     super.new(name);
   endfunction
@@ -256,17 +221,14 @@ class reset_seq extends apb_base_sequence;
     repeat(5) begin
       tr = apb_transaction::type_id::create("tr");
       start_item(tr);
-      assert(tr.randomize() with {op == RESET;});
+      if(!tr.randomize() with {op == RESET;}) `uvm_fatal("SEQ", "Randomization failed")
       finish_item(tr);
     end
   endtask
-  
 endclass
 
-// Random Mix Sequence
 class random_seq extends apb_base_sequence;
   `uvm_object_utils(random_seq)
-  
   function new(string name = "random_seq");
     super.new(name);
   endfunction
@@ -276,19 +238,14 @@ class random_seq extends apb_base_sequence;
     repeat(30) begin
       tr = apb_transaction::type_id::create("tr");
       start_item(tr);
-      assert(tr.randomize());
+      if(!tr.randomize()) `uvm_fatal("SEQ", "Randomization failed")
       finish_item(tr);
     end
   endtask
-  
 endclass
 
-//===========================================
-// Qualcomm Specific: APB Back-to-Back Stall Sequence
-//===========================================
 class apb_back_to_back_stall_seq extends apb_base_sequence;
   `uvm_object_utils(apb_back_to_back_stall_seq)
-  
   function new(string name = "apb_back_to_back_stall_seq");
     super.new(name);
   endfunction
@@ -301,7 +258,8 @@ class apb_back_to_back_stall_seq extends apb_base_sequence;
       tr = apb_transaction::type_id::create("tr");
       start_item(tr);
       
-\      if (!tr.randomize() with {
+      // תוקן: הוסר תו הבקסלאש הלא חוקי שהיה כאן בתחילת השורה
+      if (!tr.randomize() with {
         slave_wait_cycles inside {[5:12]}; 
         op inside {WRITE, READ};
       }) begin
@@ -367,7 +325,7 @@ class apb_driver extends uvm_driver#(apb_transaction);
         @(posedge vif.pclk);
         vif.penable <= 1'b1;
         
-        // מנגנון Qualcomm Watchdog להגנה מפני קריסת PREADY
+        // מנגנון Watchdog להגנה מפני קריסת PREADY
         fork
           begin: wait_pready
             wait(vif.pready == 1'b1);
@@ -379,13 +337,11 @@ class apb_driver extends uvm_driver#(apb_transaction);
         join_any
         disable fork;
         
-        @(posedge vif.pclk);
-        
-        // דגימת תגובה
+        // דגימת תגובה (מבוצע מייד כשיש PREADY=1 בסנכרון עם השעון)
         if (!vif.pwrite) tr.prdata = vif.prdata;
         tr.pslverr = vif.pslverr;
         
-        // חזרה ל-Idle (Back-to-Back תלוי בטרנזקציה הבאה)
+        // חזרה ל-Idle או מעבר לטרנזקציה הבאה ללא השהייה מיותרת
         vif.psel    <= 1'b0;
         vif.penable <= 1'b0;
       end
@@ -394,14 +350,12 @@ class apb_driver extends uvm_driver#(apb_transaction);
   
   virtual task run_phase(uvm_phase phase);
     reset_dut();
-    
     forever begin
       seq_item_port.get_next_item(req);
       drive_transaction(req);
       seq_item_port.item_done();
     end
   endtask
-  
 endclass
 
 //===========================================
@@ -459,7 +413,6 @@ class apb_monitor extends uvm_monitor;
       end
     end
   endtask
-  
 endclass
 
 //===========================================
@@ -470,7 +423,6 @@ class apb_coverage extends uvm_subscriber#(apb_transaction);
   
   apb_transaction tr;
   
-  // Coverage groups
   covergroup cg_apb_operations;
     option.per_instance = 1;
     
@@ -502,21 +454,18 @@ class apb_coverage extends uvm_subscriber#(apb_transaction);
       bins error    = {1'b1};
     }
     
-    // Cross coverage
-    cx_op_addr: cross cp_operation, cp_address {
+    cross cp_operation, cp_address {
       ignore_bins reset_cross = binsof(cp_operation) intersect {RESET};
     }
     
-    cx_op_error: cross cp_operation, cp_error {
+    cross cp_operation, cp_error {
       bins write_success = binsof(cp_operation.write) && binsof(cp_error.no_error);
       bins write_fail    = binsof(cp_operation.write_err) && binsof(cp_error.error);
       bins read_success  = binsof(cp_operation.read) && binsof(cp_error.no_error);
       bins read_fail     = binsof(cp_operation.read_err) && binsof(cp_error.error);
     }
-    
   endgroup
   
-  // Corner case coverage
   covergroup cg_corner_cases;
     option.per_instance = 1;
     
@@ -547,23 +496,19 @@ class apb_coverage extends uvm_subscriber#(apb_transaction);
   endfunction
   
   virtual function void report_phase(uvm_phase phase);
-    `uvm_info("COV", $sformatf("APB Operations Coverage: %.2f%%", 
-              cg_apb_operations.get_coverage()), UVM_LOW);
-    `uvm_info("COV", $sformatf("Corner Cases Coverage: %.2f%%", 
-              cg_corner_cases.get_coverage()), UVM_LOW);
+    `uvm_info("COV", $sformatf("APB Operations Coverage: %.2f%%", cg_apb_operations.get_coverage()), UVM_LOW);
+    `uvm_info("COV", $sformatf("Corner Cases Coverage: %.2f%%", cg_corner_cases.get_coverage()), UVM_LOW);
   endfunction
-  
 endclass
 
 //===========================================
-// Checker Class
+// Checker Class (Scoreboard)
 //===========================================
 class apb_scoreboard extends uvm_scoreboard;
   `uvm_component_utils(apb_scoreboard)
   
   uvm_analysis_imp#(apb_transaction, apb_scoreboard) sb_imp;
   
-  // Reference memory model
   logic [31:0] mem_model [32];
   
   int pass_count = 0;
@@ -577,10 +522,7 @@ class apb_scoreboard extends uvm_scoreboard;
   virtual function void build_phase(uvm_phase phase);
     super.build_phase(phase);
     sb_imp = new("sb_imp", this);
-    
-    // Initialize reference memory
-    foreach(mem_model[i])
-      mem_model[i] = 32'h0;
+    foreach(mem_model[i]) mem_model[i] = 32'h0;
   endfunction
   
   virtual function void write(apb_transaction tr);
@@ -588,66 +530,49 @@ class apb_scoreboard extends uvm_scoreboard;
     
     case(tr.op)
       RESET: begin
-        foreach(mem_model[i])
-          mem_model[i] = 32'h0;
+        foreach(mem_model[i]) mem_model[i] = 32'h0;
         `uvm_info("SCO", "Memory reset", UVM_MEDIUM);
       end
       
       WRITE: begin
         if(tr.pslverr == 1'b0) begin
-          mem_model[tr.paddr] = tr.pwdata;
-          pass_count++;
-          `uvm_info("SCO", $sformatf("WRITE SUCCESS: addr=0x%0h, data=0x%0h", 
-                    tr.paddr, tr.pwdata), UVM_HIGH);
-        end
-        else begin
+          if (tr.paddr < 32) begin
+            mem_model[tr.paddr] = tr.pwdata;
+            pass_count++;
+            `uvm_info("SCO", $sformatf("WRITE SUCCESS: addr=0x%0h, data=0x%0h", tr.paddr, tr.pwdata), UVM_HIGH);
+          end else begin
+            fail_count++;
+            `uvm_error("SCO", $sformatf("Bug in Monitor or Driver: WRITE operation marked success for out-of-bound address 0x%0h", tr.paddr));
+          end
+        end else begin
           fail_count++;
-          `uvm_error("SCO", $sformatf("Unexpected WRITE error: addr=0x%0h", tr.paddr));
+          `uvm_error("SCO", $sformatf("Unexpected WRITE error on valid address: addr=0x%0h", tr.paddr));
         end
       end
       
       READ: begin
         if(tr.pslverr == 1'b0) begin
-          if(tr.prdata == mem_model[tr.paddr]) begin
+          if(tr.paddr < 32 && tr.prdata == mem_model[tr.paddr]) begin
             pass_count++;
-            `uvm_info("SCO", $sformatf("READ MATCH: addr=0x%0h, data=0x%0h", 
-                      tr.paddr, tr.prdata), UVM_HIGH);
-          end
-          else begin
+            `uvm_info("SCO", $sformatf("READ MATCH: addr=0x%0h, data=0x%0h", tr.paddr, tr.prdata), UVM_HIGH);
+          end else begin
             fail_count++;
-            `uvm_error("SCO", $sformatf("READ MISMATCH: addr=0x%0h, expected=0x%0h, got=0x%0h", 
-                       tr.paddr, mem_model[tr.paddr], tr.prdata));
+            `uvm_error("SCO", $sformatf("READ MISMATCH: addr=0x%0h, expected=0x%0h, got=0x%0h", tr.paddr, mem_model[tr.paddr], tr.prdata));
           end
-        end
-        else begin
+        end else begin
           fail_count++;
-          `uvm_error("SCO", $sformatf("Unexpected READ error: addr=0x%0h", tr.paddr));
+          `uvm_error("SCO", $sformatf("Unexpected READ error on valid address: addr=0x%0h", tr.paddr));
         end
       end
       
-      WRITE_ERR: begin
-        if(tr.pslverr == 1'b1) begin
+      WRITE_ERR, READ_ERR: begin
+        // תוקן: הסקורבורד כעת בודק בצורה אקטיבית אם הכתובת באמת מחוץ לטווח (>=32), כדי לוודא שחזר ה-Error הנכון מה-DUT
+        if(tr.paddr >= 32 && tr.pslverr == 1'b1) begin
           pass_count++;
-          `uvm_info("SCO", $sformatf("WRITE ERROR expected and received: addr=0x%0h", 
-                    tr.paddr), UVM_HIGH);
-        end
-        else begin
+          `uvm_info("SCO", $sformatf("%s expected and received correctly for out-of-bound addr=0x%0h", tr.op.name(), tr.paddr), UVM_HIGH);
+        end else begin
           fail_count++;
-          `uvm_error("SCO", $sformatf("WRITE ERROR expected but not received: addr=0x%0h", 
-                     tr.paddr));
-        end
-      end
-      
-      READ_ERR: begin
-        if(tr.pslverr == 1'b1) begin
-          pass_count++;
-          `uvm_info("SCO", $sformatf("READ ERROR expected and received: addr=0x%0h", 
-                    tr.paddr), UVM_HIGH);
-        end
-        else begin
-          fail_count++;
-          `uvm_error("SCO", $sformatf("READ ERROR expected but not received: addr=0x%0h", 
-                     tr.paddr));
+          `uvm_error("SCO", $sformatf("ERROR checking failed: op=%s, addr=0x%0h, pslverr=%0b (Expected error response for addr>=32)", tr.op.name(), tr.paddr, tr.pslverr));
         end
       end
     endcase
@@ -667,7 +592,6 @@ class apb_scoreboard extends uvm_scoreboard;
     else
       `uvm_error("SCO", "TEST FAILED!");
   endfunction
-  
 endclass
 
 //===========================================
@@ -676,10 +600,10 @@ endclass
 class apb_agent extends uvm_agent;
   `uvm_component_utils(apb_agent)
   
-  apb_driver    drv;
-  apb_monitor   mon;
+  apb_driver                      drv;
+  apb_monitor                     mon;
   uvm_sequencer#(apb_transaction) seqr;
-  apb_config    cfg;
+  apb_config                      cfg;
   
   function new(string name = "apb_agent", uvm_component parent = null);
     super.new(name, parent);
@@ -704,7 +628,6 @@ class apb_agent extends uvm_agent;
     if(cfg.is_active == UVM_ACTIVE)
       drv.seq_item_port.connect(seqr.seq_item_export);
   endfunction
-  
 endclass
 
 //===========================================
@@ -746,14 +669,12 @@ class apb_env extends uvm_env;
     if(cfg.has_coverage)
       agt.mon.mon_ap.connect(cov.analysis_export);
   endfunction
-  
 endclass
 
 //===========================================
 // Test Library
 //===========================================
 
-// Base Test
 class apb_base_test extends uvm_test;
   `uvm_component_utils(apb_base_test)
   
@@ -771,10 +692,8 @@ class apb_base_test extends uvm_test;
   virtual function void end_of_elaboration_phase(uvm_phase phase);
     uvm_top.print_topology();
   endfunction
-  
 endclass
 
-// Write-Read Test
 class write_read_test extends apb_base_test;
   `uvm_component_utils(write_read_test)
   
@@ -791,10 +710,8 @@ class write_read_test extends apb_base_test;
     #100;
     phase.drop_objection(this);
   endtask
-  
 endclass
 
-// Bulk Write-Read Test
 class bulk_test extends apb_base_test;
   `uvm_component_utils(bulk_test)
   
@@ -811,10 +728,8 @@ class bulk_test extends apb_base_test;
     #100;
     phase.drop_objection(this);
   endtask
-  
 endclass
 
-// Error Test
 class error_test extends apb_base_test;
   `uvm_component_utils(error_test)
   
@@ -836,12 +751,8 @@ class error_test extends apb_base_test;
     #100;
     phase.drop_objection(this);
   endtask
-  
 endclass
 
-//===========================================
-// 8. המתוקן Random Test השלמת ה-
-//===========================================
 class random_test extends apb_base_test;
   `uvm_component_utils(random_test)
   
@@ -860,9 +771,6 @@ class random_test extends apb_base_test;
   endtask
 endclass
 
-//===========================================
-// Qualcomm Advanced Stress Test
-//===========================================
 class apb_qualcomm_stress_test extends apb_base_test;
   `uvm_component_utils(apb_qualcomm_stress_test)
   
@@ -873,7 +781,6 @@ class apb_qualcomm_stress_test extends apb_base_test;
   endfunction
   
   virtual function void build_phase(uvm_phase phase);
-    // החלפת סקוונס הבסיס בסקוונס הסטרס הארכיטקטוני שלנו
     set_type_override_by_type(apb_base_sequence::get_type(), apb_back_to_back_stall_seq::get_type());
     super.build_phase(phase);
   endfunction
