@@ -390,7 +390,9 @@ class apb_base_test extends uvm_test;
   `uvm_component_utils(apb_base_test)
   apb_env env;
   
-  function new(string name = "apb_base_test", uvm_component parent = null); super.new(name, parent); endfunction
+  function new(string name = "apb_base_test", uvm_component parent = null);
+    super.new(name, parent);
+  endfunction
   
   virtual function void build_phase(uvm_phase phase);
     super.build_phase(phase);
@@ -408,7 +410,10 @@ endclass
 
 class write_read_test extends apb_base_test;
   `uvm_component_utils(write_read_test)
-  function new(string name = "write_read_test", uvm_component parent = null); super.new(name, parent); endfunction
+  
+  function new(string name = "write_read_test", uvm_component parent); 
+    super.new(name, parent); 
+  endfunction
   
   virtual task run_phase(uvm_phase phase);
     write_read_seq seq = write_read_seq::type_id::create("seq");
