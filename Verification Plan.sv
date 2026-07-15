@@ -311,7 +311,6 @@ class apb_scoreboard extends uvm_scoreboard;
         reset_memory();
       end
       
-      // 2. טיפול בכתיבה
       WRITE, WRITE_ERR: begin
         write_count++;
         if (!tr.pslverr) begin
@@ -322,7 +321,6 @@ class apb_scoreboard extends uvm_scoreboard;
         end
       end
       
-      // 3. טיפול בקריאה והשוואה (The Checker)
       READ, READ_ERR: begin
         read_count++;
         if (!tr.pslverr) begin
@@ -402,7 +400,6 @@ class apb_base_test extends uvm_test;
     if(!uvm_config_db#(virtual apb_if)::get(this, "", "vif", global_vif))
       `uvm_fatal("TEST", "Failed to get global_vif from config_db")
       
-    // שיוך מבוסס מודפורטים עם השמות החדשים והקריאים
     uvm_config_db#(virtual apb_if.MP_DRIVER)::set(this, "env.agt.drv", "vif", global_vif.MP_DRIVER);
     uvm_config_db#(virtual apb_if.MP_MONITOR)::set(this, "env.agt.mon", "vif", global_vif.MP_MONITOR);
     
