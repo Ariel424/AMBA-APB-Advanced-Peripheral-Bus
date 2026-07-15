@@ -278,22 +278,70 @@ endclass
 //===========================================
 class apb_scoreboard extends uvm_scoreboard;
   `uvm_component_utils(apb_scoreboard)
+  
   uvm_analysis_imp#(apb_transaction, apb_scoreboard) sb_imp;
   logic [31:0] mem_model [32];
+
+  int write_count = 0;
+  int read_count  = 0;
+  int match_count = 0;
+  int error_count = 0;
   
-  function new(string name = "apb_scoreboard", uvm_component parent = null);
+  function new(string name = "apb_scoreboard", uvm_component parent);
     super.new(name, parent);
   endfunction
   
   virtual function void build_phase(uvm_phase phase);
     super.build_phase(phase);
     sb_imp = new("sb_imp", this);
+    reset_memory();
+  endfunction
+
+ virtual function void reset_memory();
     foreach(mem_model[i]) mem_model[i] = 32'h0;
+    `uvm_info("SCB", "Internal memory model has been reset to all zeros.", UVM_MEDIUM);
   endfunction
   
   virtual function void write(apb_transaction tr);
-    if (tr.op == WRITE && !tr.pslverr) mem_model[tr.paddr] = tr.pwdata;
-  endfunction
+    case(tr.op)
+      
+      // 1. טיפול בריסט (מסונכרן עם הדיווח של המוניטור)
+      RESET: begin
+        `uvm_info("SCB", "Reset transaction detected. Clearing scoreboard model...", UVM_MEDIUM);
+        reset_memory();
+      end
+      
+      // 2. טיפול בכתיבה
+      WRITE, WRITE_ERR: begin
+        write_count++;
+        if (!tr.pslverr) begin
+          mem_model[tr.paddr] = tr.pwdata;
+          `uvm_info("SCB", $sformatf("WRITE Verified: Addr=0x%0h, Data=0x%0h written to model.", tr.paddr, tr.pwdata), UVM_HIGH);
+        end else begin
+          `uvm_info("SCB", $sformatf("WRITE_ERR ignored by memory model (Addr=0x%0h)", tr.paddr), UVM_HIGH);
+        end
+      end
+      
+      // 3. טיפול בקריאה והשוואה (The Checker)
+      READ, READ_ERR: begin
+        read_count++;
+        if (!tr.pslverr) begin
+          logic [31:0] expected_data = mem_model[tr.paddr];
+          
+          if (tr.prdata === expected_data) begin
+            match_count++;
+            `uvm_info("SCB_MATCH", $sformatf("READ MATCH [Addr=0x%0h] - Got: 0x%0h, Expected: 0x%0h", tr.paddr, tr.prdata, expected_data), UVM_MEDIUM);
+          end else begin
+            error_count++;
+            `uvm_error("SCB_MISMATCH", $sformatf("READ MISMATCH at Addr=0x%0h! Expected: 0x%0h, Got: 0x%0h", tr.paddr, expected_data, tr.prdata));
+          end
+        end else begin
+          `uvm_info("SCB", $sformatf("READ_ERR detected (Addr=0x%0h). Skipping data match check.", tr.paddr), UVM_HIGH);
+        end
+      end
+      
+    endcase
+  endfunction  
 endclass
 
 class apb_agent extends uvm_agent;
