@@ -305,7 +305,6 @@ class apb_scoreboard extends uvm_scoreboard;
   virtual function void write(apb_transaction tr);
     case(tr.op)
       
-      // 1. טיפול בריסט (מסונכרן עם הדיווח של המוניטור)
       RESET: begin
         `uvm_info("SCB", "Reset transaction detected. Clearing scoreboard model...", UVM_MEDIUM);
         reset_memory();
