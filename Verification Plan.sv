@@ -136,7 +136,7 @@ class apb_back_to_back_stall_seq extends apb_base_sequence;
 endclass
 
 //===========================================
-// Driver Class - Adapted for MP_DRIVER
+// Driver Class
 //===========================================
 class apb_driver extends uvm_driver#(apb_transaction);
   `uvm_component_utils(apb_driver)
@@ -149,7 +149,6 @@ class apb_driver extends uvm_driver#(apb_transaction);
   
   virtual function void build_phase(uvm_phase phase);
     super.build_phase(phase);
-    drv_ap = uvm_analysis_port#(my_transaction)::type_id::create("drv_ap", this);
     if(!uvm_config_db#(virtual apb_if.MP_MONITOR)::get(this, "", "vif", vif)) begin
       `uvm_fatal("MON", "Unable to access Interface Modport (MP_MONITOR)")
     end
@@ -234,7 +233,7 @@ class apb_monitor extends uvm_monitor;
   
   virtual function void build_phase(uvm_phase phase);
     super.build_phase(phase);
-    mon_ap = uvm_analysis_port#(my_transaction)::type_id::create("drv_ap", this);
+    mon_ap = uvm_analysis_port#(apb_transaction)::type_id::create("mon_ap", this);
     if(!uvm_config_db#(virtual apb_if.MP_MONITOR)::get(this, "", "vif", vif)) begin
       `uvm_fatal("MON", "Unable to access Interface Modport (MP_MONITOR)")
     end
@@ -242,15 +241,21 @@ class apb_monitor extends uvm_monitor;
   
   virtual task run_phase(uvm_phase phase);
     apb_transaction tr;
+    bit reset_reported;
     
     forever begin
       @(vif.mon_cb);
       
-      if(!vif.presetn) begin
-        tr = apb_transaction::type_id::create("tr");
-        tr.op = RESET;
-        mon_ap.write(tr);
+       if(!vif.presetn) begin
+        if (!reset_reported) begin
+          tr = apb_transaction::type_id::create("tr");
+          tr.op = RESET;
+          mon_ap.write(tr);
+          reset_reported = 1;
+        end
       end
+      else begin
+        reset_reported = 0;
       
       else if(vif.mon_cb.psel && vif.mon_cb.penable && vif.mon_cb.pready) begin
         tr = apb_transaction::type_id::create("tr");
@@ -339,6 +344,13 @@ class apb_scoreboard extends uvm_scoreboard;
       
     endcase
   endfunction  
+
+    virtual function void report_phase(uvm_phase phase);
+    `uvm_info("SCB_REPORT",
+      $sformatf("\n--- Scoreboard Summary ---\nWrites: %0d | Reads: %0d | Matches: %0d | Errors: %0d\n--------------------------",
+        write_count, read_count, match_count, error_count),
+      UVM_LOW);
+  endfunction
 endclass
 
 class apb_agent extends uvm_agent;
@@ -348,7 +360,9 @@ class apb_agent extends uvm_agent;
   uvm_sequencer#(apb_transaction) seqr;
   apb_config cfg;
   
-  function new(string name = "apb_agent", uvm_component parent = null); super.new(name, parent); endfunction
+  function new(string name = "apb_agent", uvm_component parent = null); 
+    super.new(name, parent);
+  endfunction
   
   virtual function void build_phase(uvm_phase phase);
     super.build_phase(phase);
@@ -369,7 +383,9 @@ class apb_env extends uvm_env;
   apb_agent agt;
   apb_scoreboard scb;
   
-  function new(string name = "apb_env", uvm_component parent = null); super.new(name, parent); endfunction
+  function new(string name = "apb_env", uvm_component parent = null);
+    super.new(name, parent); 
+  endfunction
   
   virtual function void build_phase(uvm_phase phase);
     super.build_phase(phase);
@@ -430,19 +446,39 @@ endclass
 module tb_top;
   logic pclk;
   logic presetn;
-  
+ 
   initial begin
     pclk = 0;
     forever #5 pclk = ~pclk;
   end
-  
+ 
   initial begin
     presetn = 0;
     #20 presetn = 1;
   end
-  
+ 
   apb_if inf(pclk, presetn);
-
+ 
+  logic [31:0] slave_mem [32];
+  always_ff @(posedge pclk or negedge presetn) begin
+    if (!presetn) begin
+      inf.pready  <= 1'b0;
+      inf.pslverr <= 1'b0;
+      inf.prdata  <= '0;
+    end else begin
+      if (inf.psel && inf.penable) begin
+        inf.pready  <= 1'b1;
+        inf.pslverr <= (inf.paddr >= 32);
+        if (inf.paddr < 32) begin
+          if (inf.pwrite) slave_mem[inf.paddr] <= inf.pwdata;
+          else            inf.prdata <= slave_mem[inf.paddr];
+        end
+      end else begin
+        inf.pready <= 1'b0;
+      end
+    end
+  end
+ 
   initial begin
     uvm_config_db#(virtual apb_if)::set(null, "uvm_test_top", "vif", inf);
     run_test("write_read_test");
